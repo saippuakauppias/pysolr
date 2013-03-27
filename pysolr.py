@@ -669,6 +669,21 @@ class Solr(object):
         self.log.debug("Found '%d' Term suggestions results.", sum(len(j) for i, j in res.items()))
         return res
 
+    def _clean_string(self, bit):
+        def valid_XML_char_ordinal(i):
+            return ( # conditions ordered by presumed frequency
+                0x20 <= i <= 0xD7FF
+                or i in (0x9, 0xA, 0xD)
+                or 0xE000 <= i <= 0xFFFD
+                or 0x10000 <= i <= 0x10FFFF
+            )
+
+        result = []
+        for c in bit:
+            if valid_XML_char_ordinal(ord(c)):
+                result.append(c)
+        return u''.join(result)
+
     def _build_doc(self, doc, boost=None):
         doc_elem = ET.Element('doc')
 
@@ -693,7 +708,10 @@ class Solr(object):
                     attrs['boost'] = force_unicode(boost[key])
 
                 field = ET.Element('field', **attrs)
-                field.text = self._from_python(bit)
+                try:
+                    field.text = self._from_python(bit)
+                except ValueError:
+                    field.text = self._clean_string(self._from_python(bit))
 
                 doc_elem.append(field)
 
